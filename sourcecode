@@ -1,0 +1,86 @@
+NUMBER=$RANDOM
+echo $NUMBER
+sleep 10
+AKS_NAME="k8s-cluster"$NUMBER
+LOCATION="westus"
+REGISTRY="containerregistry"$NUMBER
+RESOURCE_GROUP="aksworkshop-RG"
+SUBNET_NAME="aks-subnet"
+VNET_NAME="aks-vnet"
+sleep 10
+echo $AKS_NAME
+echo $LOCATION
+echo $REGISTRY
+echo $RESOURCE_GROUP
+echo $SUBNET_NAME
+echo $VNET_NAME
+az login
+az group create -n $RESOURCE_GROUP -l $LOCATION
+sleep 10
+az acr create \
+    --resource-group $RESOURCE_GROUP \
+    --location $LOCATION \
+    --name $REGISTRY \
+    --sku Basic
+Start-Sleep -Seconds 10
+git clone https://github.com/carlosalexei/aks-workshop-ratings-api.git
+sleep 10
+cd aks-workshop-ratings-api
+sleep 10
+az acr build \
+    --resource-group $RESOURCE_GROUP \
+    --registry $REGISTRY \
+    --image ratings-api:v1 .
+sleep 10	
+cd mslearn-aks-workshop-ratings-web
+az acr build \
+    --resource-group $RESOURCE_GROUP \
+    --registry $REGISTRY \
+    --image ratings-web:v1 .
+cd
+sleep 5
+az acr repository list \
+    --name $REGISTRY \
+    --output table
+sleep 5
+az network vnet create -g $RESOURCE_GROUP \
+    -l $LOCATION \
+    --name $VNET_NAME \
+    --address-prefixes 10.0.0.0/8 \
+    --subnet-name $SUBNET_NAME \
+    --subnet-prefix 10.240.0.0/16
+sleep 5
+SUBNET_ID=$(az network vnet subnet show \
+    --resource-group $RESOURCE_GROUP \
+    --vnet-name $VNET_NAME \
+    --name $SUBNET_NAME \
+    --query id -o tsv)
+
+echo $SUBNET_ID
+VERSION=$(az aks get-versions -l $LOCATION --query 'min_by(values, &version).version' -o tsv)
+echo $VERSION
+az aks create \
+    -g $RESOURCE_GROUP \
+    -n $AKS_NAME \
+    -l $LOCATION \
+    --vm-set-type VirtualMachineScaleSets \
+    --node-count 2 \
+    --load-balancer-sku standard \
+    --kubernetes-version $VERSION \
+    --network-plugin azure \
+    --vnet-subnet-id $SUBNET_ID \
+    --service-cidr 10.2.0.0/24 \
+    --dns-service-ip 10.2.0.10 \
+    --docker-bridge-address 172.17.0.1/16 \
+    --generate-ssh-keys
+sleep 10
+az aks update \
+    --name $AKS_NAME \
+    --resource-group $RESOURCE_GROUP \
+    --attach-acr $REGISTRY
+sudo az aks install-cli
+az aks get-credentials \
+    -g $RESOURCE_GROUP \
+    -n $AKS_NAME
+kubectl get nodes
+kubectl get pods --all-namespaces
