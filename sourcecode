@@ -98,3 +98,5 @@ helm install ratings bitnami/mongodb \
 kubectl create secret generic mongosecret \
     --namespace ratingsapp \
     --from-literal=MONGOCONNECTION="mongodb://$MONGO_USER:$MONGO_PASSWORD@ratings-mongodb.ratingsapp:27017/ratingsdb"
+kubectl describe secret mongosecret --namespace ratingsapp
+kubectl describe secret mongosecret --namespace ratingsapp
